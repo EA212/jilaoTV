@@ -1,8 +1,8 @@
 
 services:
-  dongguatv:
+  jilaoTV:
     build: .
-    container_name: dongguatv
+    container_name: jilaoTV
     restart: unless-stopped
     ports:
     - "3000:3000"

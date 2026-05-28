@@ -1,0 +1,16 @@
+RewriteEngine On
+
+# Route /admin to admin/index.html (must be before other rules)
+RewriteRule ^admin$ admin/index.html [L]
+RewriteRule ^admin/$ admin/index.html [L]
+
+# Route all /api/* requests to api.php
+RewriteCond %{REQUEST_URI} ^/api/
+RewriteRule ^api/(.*)$ api.php [L,QSA]
+
+# Serve existing files normally
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Fallback to index.html for SPA
+RewriteRule ^ index.html [L]

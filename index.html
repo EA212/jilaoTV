@@ -8,10 +8,12 @@
     <meta name="referrer" content="no-referrer">
     
     <!-- 网站描述和关键词 -->
-    <title>机佬TV - 私人影视聚合平台 | 打造你的专属Netflix</title>
-    <meta name="description" content="机佬TV - 打造你的私人Netflix！聚合30+影视站点，提供智能搜索、实时测速、全网资源聚合。支持电影、电视剧、动漫、综艺等海量内容，极速播放体验。">
-    <meta name="keywords" content="机佬TV,影视搜索,电影,电视剧,动漫,综艺,全网聚合,在线播放,影视资源,视频聚合,Netflix,私人影院,影视站点聚合,智能搜索,实时测速">
-    <meta name="author" content="Minerchu">
+    <title>机佬TV - 私人影视聚合平台</title>
+    <meta name="description" content="机佬 TV - 聚合 30+ 影视站点。">
+    <meta name="keywords" content="">
+    <meta name="author" content="">
+
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css"
         integrity="sha512-GQGU0fMMi238uA+a/bdWJfpUGKUkBdgfFdgBm72SUQ6BeyWjoY/ton0tEjH+OSH9iP4Dfh+7HM0I9f5eR0L/4w=="
@@ -44,8 +46,11 @@
     <div id="app">
 
         <nav class="navbar-custom" :class="{ 'scrolled': scrollY > 50 }">
-            <div class="brand">机佬TV <span style="font-size:12px; color:#666; font-weight:normal;">MAX</span></div>
-            <a href="/admin.html" target="_blank" style="color:#888; text-decoration:none; font-size:12px;">Admin</a>
+            <div class="brand">
+                <img src="logo.png" alt="机佬 TV" style="height: 70px; vertical-align: middle;">
+                <span style="font-size:16px; color:#666; font-weight:normal;">MAX</span>
+            </div>
+            <!-- <a href="/admin.html" target="_blank" style="color:#888; text-decoration:none; font-size:12px;">Admin</a> -->
         </nav>
 
         <!-- 1. Hero Carousel -->
@@ -210,8 +215,13 @@
         </div>
 
         <div class="footer">
-            <div>kk爱吃王哥呆阿龟头 原创；机佬TV 改编</div>
-            <div style="font-size:10px; margin-top:5px; opacity:0.5;">Data provided by TMDb & Maccms APIs</div>
+            <div style="display:flex; align-items:center; gap:10px; justify-content:center;">
+                <img src="footer.ico" style="width:77px; height:77px;">
+                <div style="text-align:left;">
+                    <div style="font-size:25px;">kk 爱吃王哥呆阿龟头 原创；机佬 TV 改编</div>
+                    <div style="font-size:40px; margin-top:5px; opacity:0.5;">Data provided by TMDb & Maccms APIs</div>
+                </div>
+            </div>
         </div>
 
         <!-- ★★★ 播放详情页 (影院布局) ★★★ -->
@@ -275,14 +285,10 @@
 
     <script>
         const { createApp, reactive } = Vue;
-        // 使用你的反代域名
-        const MY_PROXY = "https://daili.smdhb.com";
-        const TMDB_API_KEY = "yourkey"; 
-
-        // API地址修改为你的反代
-        const TMDB_BASE_URL = `${MY_PROXY}/3`;
-        const TMDB_IMG_URL = `${MY_PROXY}/t/p/w500`;
-        const TMDB_BACKDROP_URL = `${MY_PROXY}/t/p/original`;
+        
+        const TMDB_BASE_URL = '/api/tmdb/3';
+        const TMDB_IMG_URL = '/api/tmdbimg/t/p/w500';
+        const TMDB_BACKDROP_URL = '/api/tmdbimg/t/p/original';
 
         let dp = null;
 
@@ -474,20 +480,20 @@
                 },
 
                 fetchAllLists() {
-                    fetch(`${TMDB_BASE_URL}/trending/movie/week?api_key=${TMDB_API_KEY}&language=zh-CN`)
+                    fetch(`${TMDB_BASE_URL}/trending/movie/week?language=zh-CN`)
                         .then(res => res.json()).then(data => { if (data.results) this.movieList = data.results; });
-                    fetch(`${TMDB_BASE_URL}/trending/tv/week?api_key=${TMDB_API_KEY}&language=zh-CN`)
+                    fetch(`${TMDB_BASE_URL}/trending/tv/week?language=zh-CN`)
                         .then(res => res.json()).then(data => { if (data.results) this.tvList = data.results; });
-                    fetch(`${TMDB_BASE_URL}/discover/tv?with_origin_country=CN&sort_by=popularity.desc&api_key=${TMDB_API_KEY}&language=zh-CN`)
+                    fetch(`${TMDB_BASE_URL}/discover/tv?with_origin_country=CN&sort_by=popularity.desc&language=zh-CN`)
                         .then(res => res.json()).then(data => { if (data.results) this.list_cn = data.results; });
-                    fetch(`${TMDB_BASE_URL}/discover/tv?with_origin_country=KR|JP&sort_by=popularity.desc&api_key=${TMDB_API_KEY}&language=zh-CN`)
+                    fetch(`${TMDB_BASE_URL}/discover/tv?with_origin_country=KR|JP&sort_by=popularity.desc&language=zh-CN`)
                         .then(res => res.json()).then(data => { if (data.results) this.list_krjp = data.results; });
-                    fetch(`${TMDB_BASE_URL}/discover/movie?with_origin_country=HK|TW&sort_by=popularity.desc&api_key=${TMDB_API_KEY}&language=zh-CN`)
+                    fetch(`${TMDB_BASE_URL}/discover/movie?with_origin_country=HK|TW&sort_by=popularity.desc&language=zh-CN`)
                         .then(res => res.json()).then(data => { if (data.results) this.list_hktw = data.results; });
                 },
 
                 fetchHero() {
-                    fetch(`${TMDB_BASE_URL}/trending/all/week?api_key=${TMDB_API_KEY}&language=zh-CN`)
+                    fetch(`${TMDB_BASE_URL}/trending/all/week?language=zh-CN`)
                         .then(res => res.json())
                         .then(data => {
                             if (data.results) {
@@ -510,7 +516,7 @@
                     if (this.imageMap[name] || this.fallbackMap[name]) return;
                     this.fallbackMap[name] = true;
                     let cleanName = name.replace(/第[0-9一二三四五六七八九十]+[季部]/g, '').replace(/Season\s*\d+/ig, '').replace(/S\d{1,2}/ig, '').replace(/(HD|BD|1080P|720P|4K|202\d|TC|TS).*/i, '').trim();
-                    fetch(`${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(cleanName)}&language=zh-CN`)
+                    fetch(`${TMDB_BASE_URL}/search/multi?query=${encodeURIComponent(cleanName)}&language=zh-CN`)
                         .then(res => res.json()).then(data => {
                             if (data.results && data.results.length > 0) {
                                 const found = data.results.find(i => i.poster_path) || data.results[0];

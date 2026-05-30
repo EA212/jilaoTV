@@ -32,7 +32,7 @@
             </div>
         </div>
 
-        <div class="card shadow-sm">
+        <div class="card shadow-sm mb-4">
             <table class="table table-hover mb-0">
                 <thead class="table-dark">
                     <tr>
@@ -60,8 +60,69 @@
                 </tbody>
             </table>
         </div>
-        <div class="mt-3 text-muted small">
-            提示：修改后请点击右上角“保存配置”生效。后端会自动代理这些接口，前端用户无法查看到具体 URL。
+        <div class="mt-3 text-muted small mb-5">
+            提示：修改后请点击右上角"保存配置"生效。后端会自动代理这些接口，前端用户无法查看到具体 URL。
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3>缓存配置</h3>
+            <div>
+                <button class="btn btn-info me-2" @click="fetchCacheStats">刷新统计</button>
+                <button class="btn btn-warning me-2" @click="clearCache">清空缓存</button>
+                <button class="btn btn-primary" @click="saveCacheConfig">保存配置</button>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">搜索缓存时间 (秒)</label>
+                        <input type="number" v-model="cacheConfig.search" class="form-control" min="60">
+                        <small class="text-muted">推荐: 300-600秒</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">热榜缓存时间 (秒)</label>
+                        <input type="number" v-model="cacheConfig.hot" class="form-control" min="60">
+                        <small class="text-muted">推荐: 1800-3600秒</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">详情缓存时间 (秒)</label>
+                        <input type="number" v-model="cacheConfig.detail" class="form-control" min="60">
+                        <small class="text-muted">推荐: 1800-3600秒</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">TMDB缓存时间 (秒)</label>
+                        <input type="number" v-model="cacheConfig.tmdb" class="form-control" min="60">
+                        <small class="text-muted">推荐: 3600-7200秒</small>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">测速缓存时间 (秒)</label>
+                        <input type="number" v-model="cacheConfig.check" class="form-control" min="60">
+                        <small class="text-muted">推荐: 1800-3600秒</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm" v-if="cacheStats">
+            <div class="card-header">缓存统计</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>SQLite 缓存 (大数据)</h5>
+                        <p>缓存条目: {{ cacheStats.sqlite.count }}</p>
+                        <p>占用空间: {{ cacheStats.sqlite.size_mb }} MB</p>
+                    </div>
+                    <div class="col-md-6" v-if="cacheStats.apcu">
+                        <h5>APCu 缓存 (小数据)</h5>
+                        <p>状态: {{ cacheStats.apcu_enabled ? '已启用' : '未启用' }}</p>
+                        <p>缓存条目: {{ cacheStats.apcu.num_entries }}</p>
+                        <p>占用内存: {{ Math.round(cacheStats.apcu.mem_size / 1024) }} KB</p>
+                        <p>命中率: {{ cacheStats.apcu.hits + cacheStats.apcu.misses > 0 ? Math.round(cacheStats.apcu.hits / (cacheStats.apcu.hits + cacheStats.apcu.misses) * 100) : 0 }}%</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -73,7 +134,15 @@
             return {
                 isLoggedIn: false,
                 password: '',
-                sites: []
+                sites: [],
+                cacheConfig: {
+                    search: 600,
+                    hot: 1800,
+                    detail: 3600,
+                    tmdb: 3600,
+                    check: 1800
+                },
+                cacheStats: null
             }
         },
         methods: {
@@ -87,6 +156,8 @@
                 if (data.success) {
                     this.isLoggedIn = true;
                     this.fetchSites();
+                    this.fetchCacheConfig();
+                    this.fetchCacheStats();
                 } else {
                     alert(data.msg);
                 }
@@ -108,6 +179,31 @@
                     body: JSON.stringify({ sites: this.sites })
                 });
                 alert('保存成功！');
+            },
+            async fetchCacheConfig() {
+                const res = await fetch('/api/admin/cache/config');
+                this.cacheConfig = await res.json();
+            },
+            async saveCacheConfig() {
+                const res = await fetch('/api/admin/cache/config', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(this.cacheConfig)
+                });
+                alert('缓存配置保存成功！');
+            },
+            async fetchCacheStats() {
+                const res = await fetch('/api/admin/cache/stats');
+                this.cacheStats = await res.json();
+            },
+            async clearCache() {
+                if (!confirm('确定要清空所有缓存吗？')) return;
+                
+                const res = await fetch('/api/admin/cache/clear', {
+                    method: 'POST'
+                });
+                alert('缓存已清空！');
+                this.fetchCacheStats();
             }
         }
     }).mount('#app');

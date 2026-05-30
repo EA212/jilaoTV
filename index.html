@@ -55,20 +55,36 @@
 
         <!-- 1. Hero Carousel -->
         <div id="heroCarousel" class="carousel slide carousel-fade" data-bs-ride="carousel" data-bs-interval="6000">
-            <div class="carousel-inner" v-if="heroList.length > 0">
-                <div class="carousel-item" v-for="(item, index) in heroList" :key="index"
-                    :class="{ active: index === 0 }">
-                    <div class="hero-bg" :style="{ backgroundImage: 'url(' + item.backdrop + ')' }"></div>
-                    <div class="hero-overlay">
-                        <div class="hero-content">
-                            <div class="hero-tag">本周 TOP {{ index + 1 }}</div>
-                            <h1 class="hero-title">{{ item.title }}</h1>
-                            <p class="hero-desc">{{ item.overview }}</p>
-                            <div class="hero-btns">
-                                <button class="btn-play" @click="autoSearch(item.title)"><i class="fas fa-play"></i>
-                                    播放</button>
-                                <button class="btn-info" @click="autoSearch(item.title)"><i
-                                        class="fas fa-info-circle"></i> 更多信息</button>
+            <div class="carousel-inner">
+                <template v-if="heroList.length > 0">
+                    <div class="carousel-item" v-for="(item, index) in heroList" :key="index"
+                        :class="{ active: index === 0 }">
+                        <div class="hero-bg" :style="{ backgroundImage: 'url(' + item.backdrop + ')' }"></div>
+                        <div class="hero-overlay">
+                            <div class="hero-content">
+                                <div class="hero-tag">本周 TOP {{ index + 1 }}</div>
+                                <h1 class="hero-title">{{ item.title }}</h1>
+                                <p class="hero-desc">{{ item.overview }}</p>
+                                <div class="hero-btns">
+                                    <button class="btn-play" @click="autoSearch(item.title)"><i class="fas fa-play"></i>
+                                        播放</button>
+                                    <button class="btn-info" @click="autoSearch(item.title)"><i
+                                            class="fas fa-info-circle"></i> 更多信息</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <div class="carousel-item active" v-else>
+                    <div class="skeleton-hero">
+                        <div class="skeleton-hero-content">
+                            <div class="skeleton-hero-tag"></div>
+                            <div class="skeleton-hero-title"></div>
+                            <div class="skeleton-hero-desc"></div>
+                            <div class="skeleton-hero-desc" style="width: 70%;"></div>
+                            <div style="margin-top: 20px;">
+                                <div class="skeleton-hero-btn"></div>
+                                <div class="skeleton-hero-btn"></div>
                             </div>
                         </div>
                     </div>
@@ -87,16 +103,16 @@
 
         <div v-if="!searched">
             <!-- 3. TMDb Movies -->
-            <div class="section-container animate__animated animate__fadeInUp" v-if="movieList.length > 0">
+            <div class="section-container animate__animated animate__fadeInUp">
                 <div class="section-header">
                     <div class="section-line"></div>
                     <div class="section-title"><i class="fas fa-film"></i> 全球震感·电影榜</div>
-                    <div class="hot-row-nav">
+                    <div class="hot-row-nav" v-if="movieList.length > 0">
                         <button class="nav-btn nav-prev" @click="scrollHotRow('movie', 'prev')"><i class="fas fa-chevron-left"></i></button>
                         <button class="nav-btn nav-next" @click="scrollHotRow('movie', 'next')"><i class="fas fa-chevron-right"></i></button>
                     </div>
                 </div>
-                <div class="hot-row" data-section="movie">
+                <div class="hot-row" data-section="movie" v-if="movieList.length > 0">
                     <div class="hot-card" v-for="item in movieList" :key="item.id" @click="autoSearch(item.title)">
                         <div class="poster-wrap">
                             <img :src="'https://daili.smdhb.com/t/p/w300' + item.poster_path" loading="lazy">
@@ -107,19 +123,26 @@
                         <div class="movie-date">{{ item.release_date?.split('-')[0] }}</div>
                     </div>
                 </div>
+                <div class="hot-row" data-section="movie" v-else>
+                    <div class="skeleton-card" v-for="i in 10" :key="i">
+                        <div class="skeleton-poster"></div>
+                        <div class="skeleton-text"></div>
+                        <div class="skeleton-text-sm"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- 4. TMDb TV -->
-            <div class="section-container animate__animated animate__fadeInUp" v-if="tvList.length > 0">
+            <div class="section-container animate__animated animate__fadeInUp">
                 <div class="section-header">
                     <div class="section-line"></div>
                     <div class="section-title"><i class="fas fa-tv"></i> 全球必追·剧集榜</div>
-                    <div class="hot-row-nav">
+                    <div class="hot-row-nav" v-if="tvList.length > 0">
                         <button class="nav-btn nav-prev" @click="scrollHotRow('tv', 'prev')"><i class="fas fa-chevron-left"></i></button>
                         <button class="nav-btn nav-next" @click="scrollHotRow('tv', 'next')"><i class="fas fa-chevron-right"></i></button>
                     </div>
                 </div>
-                <div class="hot-row" data-section="tv">
+                <div class="hot-row" data-section="tv" v-if="tvList.length > 0">
                     <div class="hot-card" v-for="item in tvList" :key="item.id" @click="autoSearch(item.name)">
                         <div class="poster-wrap">
                             <img :src="'https://daili.smdhb.com/t/p/w300' + item.poster_path" loading="lazy">
@@ -130,19 +153,26 @@
                         <div class="movie-date">{{ item.first_air_date?.split('-')[0] }}</div>
                     </div>
                 </div>
+                <div class="hot-row" data-section="tv" v-else>
+                    <div class="skeleton-card" v-for="i in 10" :key="i">
+                        <div class="skeleton-poster"></div>
+                        <div class="skeleton-text"></div>
+                        <div class="skeleton-text-sm"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- 5. 华语强档 -->
-            <div class="section-container animate__animated animate__fadeInUp" v-if="list_cn.length > 0">
+            <div class="section-container animate__animated animate__fadeInUp">
                 <div class="section-header">
                     <div class="section-line"></div>
                     <div class="section-title"><i class="fas fa-dragon"></i> 华语强档·国产剧</div>
-                    <div class="hot-row-nav">
+                    <div class="hot-row-nav" v-if="list_cn.length > 0">
                         <button class="nav-btn nav-prev" @click="scrollHotRow('cn', 'prev')"><i class="fas fa-chevron-left"></i></button>
                         <button class="nav-btn nav-next" @click="scrollHotRow('cn', 'next')"><i class="fas fa-chevron-right"></i></button>
                     </div>
                 </div>
-                <div class="hot-row" data-section="cn">
+                <div class="hot-row" data-section="cn" v-if="list_cn.length > 0">
                     <div class="hot-card" v-for="item in list_cn" :key="item.id" @click="autoSearch(item.name)">
                         <div class="poster-wrap">
                             <img :src="'https://daili.smdhb.com/t/p/w300' + item.poster_path" loading="lazy">
@@ -153,19 +183,26 @@
                         <div class="movie-date">{{ item.first_air_date?.split('-')[0] }}</div>
                     </div>
                 </div>
+                <div class="hot-row" data-section="cn" v-else>
+                    <div class="skeleton-card" v-for="i in 10" :key="i">
+                        <div class="skeleton-poster"></div>
+                        <div class="skeleton-text"></div>
+                        <div class="skeleton-text-sm"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- 6. 日韩潮流 -->
-            <div class="section-container animate__animated animate__fadeInUp" v-if="list_krjp.length > 0">
+            <div class="section-container animate__animated animate__fadeInUp">
                 <div class="section-header">
                     <div class="section-line"></div>
                     <div class="section-title"><i class="fas fa-mask"></i> 日韩潮流·剧集/动漫</div>
-                    <div class="hot-row-nav">
+                    <div class="hot-row-nav" v-if="list_krjp.length > 0">
                         <button class="nav-btn nav-prev" @click="scrollHotRow('krjp', 'prev')"><i class="fas fa-chevron-left"></i></button>
                         <button class="nav-btn nav-next" @click="scrollHotRow('krjp', 'next')"><i class="fas fa-chevron-right"></i></button>
                     </div>
                 </div>
-                <div class="hot-row" data-section="krjp">
+                <div class="hot-row" data-section="krjp" v-if="list_krjp.length > 0">
                     <div class="hot-card" v-for="item in list_krjp" :key="item.id" @click="autoSearch(item.name)">
                         <div class="poster-wrap">
                             <img :src="'https://daili.smdhb.com/t/p/w300' + item.poster_path" loading="lazy">
@@ -174,6 +211,13 @@
                         </div>
                         <div class="movie-name">{{ item.name }}</div>
                         <div class="movie-date">{{ item.first_air_date?.split('-')[0] }}</div>
+                    </div>
+                </div>
+                <div class="hot-row" data-section="krjp" v-else>
+                    <div class="skeleton-card" v-for="i in 10" :key="i">
+                        <div class="skeleton-poster"></div>
+                        <div class="skeleton-text"></div>
+                        <div class="skeleton-text-sm"></div>
                     </div>
                 </div>
             </div>
@@ -437,7 +481,9 @@
                     showDetail: false, currentGroup: null, currentSource: null,
                     episodeList: [], currentUrl: '', loadingDetail: false,
                     imageMap: {}, fallbackMap: {}, heroList: [], scrollY: 0,
-                    hotList: []
+                    hotList: [],
+                    searchTimer: null,
+                    searchAbortController: null
                 }
             },
             mounted() {
@@ -479,31 +525,65 @@
                     else alert('您的浏览器不支持网页直接投屏，请使用浏览器菜单中的投射功能。');
                 },
 
-                fetchAllLists() {
-                    fetch(`${TMDB_BASE_URL}/trending/movie/week?language=zh-CN`)
-                        .then(res => res.json()).then(data => { if (data.results) this.movieList = data.results; });
-                    fetch(`${TMDB_BASE_URL}/trending/tv/week?language=zh-CN`)
-                        .then(res => res.json()).then(data => { if (data.results) this.tvList = data.results; });
-                    fetch(`${TMDB_BASE_URL}/discover/tv?with_origin_country=CN&sort_by=popularity.desc&language=zh-CN`)
-                        .then(res => res.json()).then(data => { if (data.results) this.list_cn = data.results; });
-                    fetch(`${TMDB_BASE_URL}/discover/tv?with_origin_country=KR|JP&sort_by=popularity.desc&language=zh-CN`)
-                        .then(res => res.json()).then(data => { if (data.results) this.list_krjp = data.results; });
-                    fetch(`${TMDB_BASE_URL}/discover/movie?with_origin_country=HK|TW&sort_by=popularity.desc&language=zh-CN`)
-                        .then(res => res.json()).then(data => { if (data.results) this.list_hktw = data.results; });
+                async fetchWithRetry(url, options = {}, retries = 3, delay = 3000) {
+                    for (let i = 0; i < retries; i++) {
+                        try {
+                            const res = await fetch(url, options);
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                            return await res.json();
+                        } catch (err) {
+                            console.warn(`请求失败 (第${i + 1}次):`, url, err.message);
+                            if (i < retries - 1) {
+                                await new Promise(r => setTimeout(r, delay));
+                            } else {
+                                console.error(`请求最终失败 (${retries}次重试后):`, url);
+                                throw err;
+                            }
+                        }
+                    }
                 },
 
-                fetchHero() {
-                    fetch(`${TMDB_BASE_URL}/trending/all/week?language=zh-CN`)
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.results) {
-                                this.heroList = data.results.filter(i => i.backdrop_path).slice(0, 5).map(item => ({
-                                    title: item.title || item.name,
-                                    overview: item.overview || '精彩内容不容错过',
-                                    backdrop: `${TMDB_BACKDROP_URL}${item.backdrop_path}`
-                                }));
+                async fetchAllLists() {
+                    const requests = [
+                        { url: `${TMDB_BASE_URL}/trending/movie/week?language=zh-CN`, target: 'movieList', name: '电影榜' },
+                        { url: `${TMDB_BASE_URL}/trending/tv/week?language=zh-CN`, target: 'tvList', name: '剧集榜' },
+                        { url: `${TMDB_BASE_URL}/discover/tv?with_origin_country=CN&sort_by=popularity.desc&language=zh-CN`, target: 'list_cn', name: '华语强档' },
+                        { url: `${TMDB_BASE_URL}/discover/tv?with_origin_country=KR|JP&sort_by=popularity.desc&language=zh-CN`, target: 'list_krjp', name: '日韩潮流' },
+                        { url: `${TMDB_BASE_URL}/discover/movie?with_origin_country=HK|TW&sort_by=popularity.desc&language=zh-CN`, target: 'list_hktw', name: '港台电影' }
+                    ];
+
+                    const results = await Promise.allSettled(
+                        requests.map(req => this.fetchWithRetry(req.url)) // ✅ 直接走重试，不手动捕获
+                    );
+
+                    results.forEach((result, index) => {
+                        const req = requests[index];
+                        if (result.status === 'fulfilled') {
+                            const data = result.value;
+                            if (data?.results) {
+                                this[req.target] = data.results;
+                            } else {
+                                console.error(`${req.name}加载失败：无数据返回`);
                             }
-                        });
+                        } else {
+                            console.error(`${req.name}最终请求失败：`, result.reason);
+                        }
+                    });
+                },
+
+                async fetchHero() {
+                    try {
+                        const data = await this.fetchWithRetry(`${TMDB_BASE_URL}/trending/all/week?language=zh-CN`);
+                        if (data.results) {
+                            this.heroList = data.results.filter(i => i.backdrop_path).slice(0, 5).map(item => ({
+                                title: item.title || item.name,
+                                overview: item.overview || '精彩内容不容错过',
+                                backdrop: `${TMDB_BACKDROP_URL}${item.backdrop_path}`
+                            }));
+                        }
+                    } catch (e) {
+                        console.error('Hero轮播加载失败', e);
+                    }
                 },
 
                 finalPoster(item, isHot = false) {
@@ -532,34 +612,82 @@
                     this.keyword = name;
                     this.doSearch();
                     setTimeout(() => {
-                        document.getElementById('search-result-anchor').scrollIntoView({ behavior: 'smooth' });
-                    }, 100);
+                        const element = document.getElementById('search-result-anchor');
+                        if (element) {
+                            element.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }, 500);
                 },
-                clearSearch() { this.searched = false; this.keyword = ''; this.rawList = []; },
+                clearSearch() { 
+                    this.searched = false; 
+                    this.keyword = ''; 
+                    this.rawList = [];
+                    if (this.searchTimer) {
+                        clearTimeout(this.searchTimer);
+                        this.searchTimer = null;
+                    }
+                    if (this.searchAbortController) {
+                        this.searchAbortController.abort();
+                        this.searchAbortController = null;
+                    }
+                },
                 async doSearch() {
                     if (!this.keyword) return;
-                    this.loading = true;
-                    this.searched = true;
-                    this.rawList = [];
-                    try {
-                        const res = await fetch(`/api/search?wd=${encodeURIComponent(this.keyword)}`);
-                        const data = await res.json();
-                        this.rawList = data.list || [];
-                        this.rawList.forEach(item => {
-                            if (!item.vod_pic || item.vod_pic.includes('mac_default')) this.handleImgError(item.vod_name);
-                        });
-                    } catch (e) { }
-                    this.loading = false;
+                    
+                    if (this.searchTimer) clearTimeout(this.searchTimer);
+                    
+                    this.searchTimer = setTimeout(async () => {
+                        if (this.searchAbortController) this.searchAbortController.abort();
+                        
+                        this.searchAbortController = new AbortController();
+                        this.loading = true;
+                        this.searched = true;
+                        this.rawList = [];
+                        
+                        try {
+                            // ✅ 用你的重试方法
+                            const data = await this.fetchWithRetry(
+                                `/api/search?wd=${encodeURIComponent(this.keyword)}`,
+                                { signal: this.searchAbortController.signal }
+                            );
+                            this.rawList = data.list || [];
+                            this.rawList.forEach(item => {
+                                if (!item.vod_pic || item.vod_pic.includes('mac_default')) this.handleImgError(item.vod_name);
+                            });
+                        } catch (e) {
+                            if (e.name !== 'AbortError') console.error('搜索失败：', e);
+                        }
+                        this.loading = false;
+                        this.searchAbortController = null;
+                    }, 300);
                 },
                 openDetail(group) {
                     this.currentGroup = group;
                     this.showDetail = true;
+                    
                     this.currentGroup.sources.forEach(source => {
                         source.latency = '...';
-                        fetch(`/api/check?key=${source.site_key}`)
-                            .then(res => res.json())
-                            .then(data => { source.latency = data.latency; });
                     });
+                    
+                    setTimeout(() => {
+                        this.currentGroup.sources.forEach((source, index) => {
+                            setTimeout(() => {
+                                fetch(`/api/check?key=${source.site_key}`)
+                                    .then(res => res.json())
+                                    .then(data => { 
+                                        if (this.currentGroup && this.currentGroup.sources[index]) {
+                                            this.currentGroup.sources[index].latency = data.latency;
+                                        }
+                                    })
+                                    .catch(() => {
+                                        if (this.currentGroup && this.currentGroup.sources[index]) {
+                                            this.currentGroup.sources[index].latency = 9999;
+                                        }
+                                    });
+                            }, index * 100);
+                        });
+                    }, 500);
+                    
                     let best = group.sources[0];
                     this.switchSource(best);
                 },

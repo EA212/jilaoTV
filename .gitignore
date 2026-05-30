@@ -3,3 +3,4 @@ package-lock.json
 db.json
 .env
 .env.php
+db.sqlite

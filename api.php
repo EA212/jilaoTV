@@ -1,4 +1,56 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+
+function errorHandler($errno, $errstr, $errfile, $errline) {
+    $errorTypes = [
+        E_ERROR => 'Error',
+        E_WARNING => 'Warning',
+        E_PARSE => 'Parse Error',
+        E_NOTICE => 'Notice',
+        E_CORE_ERROR => 'Core Error',
+        E_CORE_WARNING => 'Core Warning',
+        E_COMPILE_ERROR => 'Compile Error',
+        E_COMPILE_WARNING => 'Compile Warning',
+        E_USER_ERROR => 'User Error',
+        E_USER_WARNING => 'User Warning',
+        E_USER_NOTICE => 'User Notice',
+        E_STRICT => 'Strict',
+        E_RECOVERABLE_ERROR => 'Recoverable Error',
+        E_DEPRECATED => 'Deprecated',
+        E_USER_DEPRECATED => 'User Deprecated'
+    ];
+    
+    $type = $errorTypes[$errno] ?? 'Unknown Error';
+    
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'error' => true,
+        'type' => $type,
+        'message' => $errstr,
+        'file' => basename($errfile),
+        'line' => $errline
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
+function exceptionHandler($exception) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'error' => true,
+        'type' => 'Exception',
+        'message' => $exception->getMessage(),
+        'file' => basename($exception->getFile()),
+        'line' => $exception->getLine(),
+        'trace' => $exception->getTraceAsString()
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
+set_error_handler('errorHandler');
+set_exception_handler('exceptionHandler');
+
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
@@ -9,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-$DATA_FILE = __DIR__ . '/db.json';
+$DB_FILE = __DIR__ . '/db.sqlite';
 
 $envFile = __DIR__ . '/.env.php';
 $env = file_exists($envFile) ? include($envFile) : [];
@@ -18,6 +70,16 @@ $ADMIN_PASSWORD = $env['ADMIN_PASSWORD'] ?? 'admin';
 $FORCE_UPDATE = ($env['FORCE_UPDATE'] ?? 'false') === 'true';
 $TMDB_API_KEY = $env['TMDB_API_KEY'] ?? '';
 $TMDB_PROXY_URL = $env['TMDB_PROXY_URL'] ?? '';
+
+$CACHE_ENABLED = function_exists('apcu_fetch');
+
+$DB_CACHE_CONFIG = [
+    'search' => 600,
+    'hot' => 1800,
+    'detail' => 3600,
+    'tmdb' => 3600,
+    'check' => 1800
+];
 
 $DEFAULT_SITES = [
     ['key' => 'ffzy', 'name' => '非凡影视', 'api' => 'https://api.ffzyapi.com/api.php/provide/vod', 'active' => true],
@@ -54,43 +116,216 @@ $DEFAULT_SITES = [
     ['key' => 'guangsuapi', 'name' => '光速资源', 'api' => 'https://api.guangsuapi.com/api.php/provide/vod', 'active' => true]
 ];
 
-function initDB($DATA_FILE, $DEFAULT_SITES) {
-    if (!file_exists($DATA_FILE)) {
-        file_put_contents($DATA_FILE, json_encode(['sites' => $DEFAULT_SITES], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+function getCacheConfig($db, $key, $default) {
+    $stmt = $db->prepare('SELECT config_value FROM config WHERE config_key = :key');
+    if (!$stmt) return $default;
+    
+    $stmt->bindValue(':key', 'cache_ttl_' . $key, SQLITE3_TEXT);
+    $result = $stmt->execute();
+    if (!$result) return $default;
+    
+    $row = $result->fetchArray();
+    
+    if ($row) {
+        return (int)$row['config_value'];
+    }
+    
+    return $default;
+}
+
+function initCacheConfig($db, $defaultConfig) {
+    $stmt = $db->prepare('INSERT OR IGNORE INTO config (config_key, config_value) VALUES (:key, :value)');
+    if (!$stmt) return;
+    
+    foreach ($defaultConfig as $key => $value) {
+        $stmt->bindValue(':key', 'cache_ttl_' . $key, SQLITE3_TEXT);
+        $stmt->bindValue(':value', (string)$value, SQLITE3_TEXT);
+        $stmt->execute();
+        $stmt->reset();
     }
 }
 
-function getDB($DATA_FILE, $DEFAULT_SITES, $FORCE_UPDATE) {
-    initDB($DATA_FILE, $DEFAULT_SITES);
+function cacheGet($key, $useSQLite = false) {
+    global $CACHE_ENABLED, $db;
     
-    try {
-        $data = json_decode(file_get_contents($DATA_FILE), true);
+    if ($useSQLite && isset($db['db'])) {
+        $stmt = $db['db']->prepare('SELECT cache_data FROM cache WHERE cache_key = :key AND expire_time > :now');
+        if (!$stmt) return null;
         
-        if ($FORCE_UPDATE) {
-            $dbSites = $data['sites'] ?? [];
-            foreach ($DEFAULT_SITES as $defSite) {
-                $found = false;
-                foreach ($dbSites as $site) {
-                    if ($site['key'] === $defSite['key']) {
-                        $found = true;
-                        break;
-                    }
-                }
-                if (!$found) {
-                    $dbSites[] = $defSite;
-                }
+        $stmt->bindValue(':key', $key, SQLITE3_TEXT);
+        $stmt->bindValue(':now', time(), SQLITE3_INTEGER);
+        $result = $stmt->execute();
+        if (!$result) return null;
+        
+        $row = $result->fetchArray();
+        
+        if ($row) {
+            return $row['cache_data'];
+        }
+        return null;
+    }
+    
+    if (!$CACHE_ENABLED) return null;
+    
+    $success = false;
+    $data = apcu_fetch($key, $success);
+    return $success ? $data : null;
+}
+
+function cacheSet($key, $data, $ttl, $useSQLite = false) {
+    global $CACHE_ENABLED, $db;
+    
+    if ($useSQLite && isset($db['db'])) {
+        $expireTime = time() + $ttl;
+        
+        $stmt = $db['db']->prepare('INSERT OR REPLACE INTO cache (cache_key, cache_data, expire_time) VALUES (:key, :data, :expire)');
+        if (!$stmt) return false;
+        
+        $stmt->bindValue(':key', $key, SQLITE3_TEXT);
+        $stmt->bindValue(':data', $data, SQLITE3_TEXT);
+        $stmt->bindValue(':expire', $expireTime, SQLITE3_INTEGER);
+        $stmt->execute();
+        
+        return true;
+    }
+    
+    if (!$CACHE_ENABLED) return false;
+    
+    return apcu_store($key, $data, $ttl);
+}
+
+function cacheClean($db) {
+    $db->exec('DELETE FROM cache WHERE expire_time <= ' . time());
+}
+
+function initSQLite($DB_FILE) {
+    $db = new SQLite3($DB_FILE);
+    
+    $db->exec('CREATE TABLE IF NOT EXISTS sites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        site_key TEXT UNIQUE NOT NULL,
+        site_name TEXT NOT NULL,
+        api_url TEXT NOT NULL,
+        is_active INTEGER DEFAULT 1
+    )');
+    
+    $db->exec('CREATE TABLE IF NOT EXISTS cache (
+        cache_key TEXT PRIMARY KEY,
+        cache_data TEXT NOT NULL,
+        expire_time INTEGER NOT NULL,
+        created_at INTEGER DEFAULT (strftime(\'%s\', \'now\'))
+    )');
+    
+    $db->exec('CREATE INDEX IF NOT EXISTS idx_cache_expire ON cache(expire_time)');
+    
+    $db->exec('CREATE TABLE IF NOT EXISTS config (
+        config_key TEXT PRIMARY KEY,
+        config_value TEXT NOT NULL
+    )');
+    
+    return $db;
+}
+
+function initDB($DB_FILE, $DEFAULT_SITES) {
+    $db = initSQLite($DB_FILE);
+    if (!$db) return null;
+    
+    $count = $db->querySingle('SELECT COUNT(*) FROM sites');
+    
+    if ($count == 0) {
+        $stmt = $db->prepare('INSERT INTO sites (site_key, site_name, api_url, is_active) VALUES (:key, :name, :api, :active)');
+        if ($stmt) {
+            foreach ($DEFAULT_SITES as $site) {
+                $stmt->bindValue(':key', $site['key'], SQLITE3_TEXT);
+                $stmt->bindValue(':name', $site['name'], SQLITE3_TEXT);
+                $stmt->bindValue(':api', $site['api'], SQLITE3_TEXT);
+                $stmt->bindValue(':active', $site['active'] ? 1 : 0, SQLITE3_INTEGER);
+                $stmt->execute();
+                $stmt->reset();
             }
-            return ['sites' => $dbSites];
+        }
+    }
+    
+    return $db;
+}
+
+function getDB($DB_FILE, $DEFAULT_SITES, $FORCE_UPDATE, $DB_CACHE_CONFIG) {
+    $db = initDB($DB_FILE, $DEFAULT_SITES);
+    
+    if (!$db) {
+        return [
+            'db' => null,
+            'sites' => $DEFAULT_SITES,
+            'cacheConfig' => $DB_CACHE_CONFIG
+        ];
+    }
+    
+    initCacheConfig($db, $DB_CACHE_CONFIG);
+    
+    if ($FORCE_UPDATE) {
+        $existingKeys = [];
+        $result = $db->query('SELECT site_key FROM sites');
+        while ($row = $result->fetchArray()) {
+            $existingKeys[] = $row['site_key'];
         }
         
-        return $data;
-    } catch (Exception $e) {
-        return ['sites' => $DEFAULT_SITES];
+        $stmt = $db->prepare('INSERT OR IGNORE INTO sites (site_key, site_name, api_url, is_active) VALUES (:key, :name, :api, :active)');
+        if ($stmt) {
+            foreach ($DEFAULT_SITES as $site) {
+                if (!in_array($site['key'], $existingKeys)) {
+                    $stmt->bindValue(':key', $site['key'], SQLITE3_TEXT);
+                    $stmt->bindValue(':name', $site['name'], SQLITE3_TEXT);
+                    $stmt->bindValue(':api', $site['api'], SQLITE3_TEXT);
+                    $stmt->bindValue(':active', $site['active'] ? 1 : 0, SQLITE3_INTEGER);
+                    $stmt->execute();
+                    $stmt->reset();
+                }
+            }
+        }
     }
+    
+    $sites = [];
+    $result = $db->query('SELECT site_key, site_name, api_url, is_active FROM sites');
+    while ($row = $result->fetchArray()) {
+        $sites[] = [
+            'key' => $row['site_key'],
+            'name' => $row['site_name'],
+            'api' => $row['api_url'],
+            'active' => (bool)$row['is_active']
+        ];
+    }
+    
+    $cacheConfig = [];
+    foreach ($DB_CACHE_CONFIG as $key => $default) {
+        $cacheConfig[$key] = getCacheConfig($db, $key, $default);
+    }
+    
+    cacheClean($db);
+    
+    return ['db' => $db, 'sites' => $sites, 'cacheConfig' => $cacheConfig];
 }
 
-function saveDB($DATA_FILE, $data) {
-    file_put_contents($DATA_FILE, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+function saveDB($DB_FILE, $sites) {
+    $db = initSQLite($DB_FILE);
+    if (!$db) return false;
+    
+    $db->exec('BEGIN TRANSACTION');
+    $db->exec('DELETE FROM sites');
+    
+    $stmt = $db->prepare('INSERT INTO sites (site_key, site_name, api_url, is_active) VALUES (:key, :name, :api, :active)');
+    if ($stmt) {
+        foreach ($sites as $site) {
+            $stmt->bindValue(':key', $site['key'], SQLITE3_TEXT);
+            $stmt->bindValue(':name', $site['name'], SQLITE3_TEXT);
+            $stmt->bindValue(':api', $site['api'], SQLITE3_TEXT);
+            $stmt->bindValue(':active', $site['active'] ? 1 : 0, SQLITE3_INTEGER);
+            $stmt->execute();
+            $stmt->reset();
+        }
+    }
+    
+    $db->exec('COMMIT');
+    return true;
 }
 
 function httpRequest($url, $timeout = 3000) {
@@ -124,8 +359,14 @@ function getUrlPath() {
     return $path;
 }
 
-$db = getDB($DATA_FILE, $DEFAULT_SITES, $FORCE_UPDATE);
+$db = getDB($DB_FILE, $DEFAULT_SITES, $FORCE_UPDATE, $DB_CACHE_CONFIG);
 $path = getUrlPath();
+
+$CACHE_TTL_SEARCH = $db['cacheConfig']['search'];
+$CACHE_TTL_HOT = $db['cacheConfig']['hot'];
+$CACHE_TTL_DETAIL = $db['cacheConfig']['detail'];
+$CACHE_TTL_TMDB = $db['cacheConfig']['tmdb'];
+$CACHE_TTL_CHECK = $db['cacheConfig']['check'];
 
 switch (true) {
     case strpos($path, 'tmdbimg') === 0 && $_SERVER['REQUEST_METHOD'] === 'GET':
@@ -136,6 +377,14 @@ switch (true) {
     case strpos($path, 'tmdb') === 0 && $_SERVER['REQUEST_METHOD'] === 'GET':
         $tmdbPath = substr($path, 4);
         $query = $_SERVER['QUERY_STRING'] ?? '';
+        
+        $cacheKey = 'tmdb:' . $tmdbPath . ':' . md5($query);
+        $cached = cacheGet($cacheKey, true);
+        
+        if ($cached !== null) {
+            echo $cached;
+            break;
+        }
         
         if ($query) {
             $url = $TMDB_PROXY_URL . $tmdbPath . '?' . $query . '&api_key=' . $TMDB_API_KEY;
@@ -160,22 +409,29 @@ switch (true) {
         curl_close($ch);
         
         if ($response && $httpCode === 200) {
+            cacheSet($cacheKey, $response, $CACHE_TTL_TMDB, true);
             echo $response;
         } else {
             http_response_code(500);
             echo json_encode([
                 'error' => 'TMDB API Error',
-                'url' => $url,
                 'httpCode' => $httpCode,
-                'curlError' => $error,
-                'proxyUrl' => $TMDB_PROXY_URL,
-                'apiKey' => substr($TMDB_API_KEY, 0, 8) . '...'
+                'curlError' => $error
             ], JSON_UNESCAPED_UNICODE);
         }
         break;
         
     case $path === 'check' && $_SERVER['REQUEST_METHOD'] === 'GET':
         $key = $_GET['key'] ?? '';
+        
+        $cacheKey = 'check:' . $key;
+        $cached = cacheGet($cacheKey);
+        
+        if ($cached !== null) {
+            echo json_encode($cached);
+            break;
+        }
+        
         $site = null;
         
         foreach ($db['sites'] as $s) {
@@ -186,7 +442,9 @@ switch (true) {
         }
         
         if (!$site) {
-            echo json_encode(['latency' => 9999]);
+            $result = ['latency' => 9999];
+            cacheSet($cacheKey, $result, $CACHE_TTL_CHECK);
+            echo json_encode($result);
             break;
         }
         
@@ -194,14 +452,26 @@ switch (true) {
         $response = httpRequest($site['api'] . '?ac=list&pg=1', 3000);
         $latency = (int)((microtime(true) - $start) * 1000);
         
-        echo json_encode(['latency' => $response ? $latency : 9999]);
+        $result = ['latency' => $response ? $latency : 9999];
+        cacheSet($cacheKey, $result, $CACHE_TTL_CHECK);
+        echo json_encode($result);
         break;
         
     case $path === 'hot' && $_SERVER['REQUEST_METHOD'] === 'GET':
+        $cacheKey = 'hot:list';
+        $cached = cacheGet($cacheKey);
+        
+        if ($cached !== null) {
+            echo json_encode($cached);
+            break;
+        }
+        
         $hotKeys = ['ffzy', 'bfzy', 'lzi', 'dbzy'];
         $hotSites = array_filter($db['sites'], function($s) use ($hotKeys) {
             return in_array($s['key'], $hotKeys);
         });
+        
+        $result = ['list' => []];
         
         foreach ($hotSites as $site) {
             $response = httpRequest($site['api'] . '?ac=list&pg=1&h=24&out=json', 3000);
@@ -211,13 +481,14 @@ switch (true) {
                 $list = $data['list'] ?? $data['data'] ?? null;
                 
                 if ($list && is_array($list) && count($list) > 0) {
-                    echo json_encode(['list' => array_slice($list, 0, 12)], JSON_UNESCAPED_UNICODE);
-                    break 2;
+                    $result = ['list' => array_slice($list, 0, 12)];
+                    break;
                 }
             }
         }
         
-        echo json_encode(['list' => []]);
+        cacheSet($cacheKey, $result, $CACHE_TTL_HOT);
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
         break;
         
     case $path === 'search' && $_SERVER['REQUEST_METHOD'] === 'GET':
@@ -225,6 +496,14 @@ switch (true) {
         
         if (!$wd) {
             echo json_encode(['list' => []]);
+            break;
+        }
+        
+        $cacheKey = 'search:' . md5($wd);
+        $cached = cacheGet($cacheKey, true);
+        
+        if ($cached !== null) {
+            echo $cached;
             break;
         }
         
@@ -284,12 +563,24 @@ switch (true) {
         }
         
         curl_multi_close($mh);
-        echo json_encode(['list' => $results], JSON_UNESCAPED_UNICODE);
+        
+        $result = ['list' => $results];
+        $resultJson = json_encode($result, JSON_UNESCAPED_UNICODE);
+        cacheSet($cacheKey, $resultJson, $CACHE_TTL_SEARCH, true);
+        echo $resultJson;
         break;
         
     case $path === 'detail' && $_SERVER['REQUEST_METHOD'] === 'GET':
         $siteKey = $_GET['site_key'] ?? '';
         $id = $_GET['id'] ?? '';
+        
+        $cacheKey = 'detail:' . $siteKey . ':' . $id;
+        $cached = cacheGet($cacheKey, true);
+        
+        if ($cached !== null) {
+            echo $cached;
+            break;
+        }
         
         $targetSite = null;
         foreach ($db['sites'] as $s) {
@@ -308,6 +599,7 @@ switch (true) {
         $response = httpRequest($targetSite['api'] . '?ac=detail&ids=' . $id . '&out=json', 6000);
         
         if ($response) {
+            cacheSet($cacheKey, $response, $CACHE_TTL_DETAIL, true);
             echo $response;
         } else {
             http_response_code(500);
@@ -333,8 +625,82 @@ switch (true) {
         
     case $path === 'admin/sites' && $_SERVER['REQUEST_METHOD'] === 'POST':
         $input = json_decode(file_get_contents('php://input'), true);
-        saveDB($DATA_FILE, ['sites' => $input['sites'] ?? []]);
+        saveDB($DB_FILE, $input['sites'] ?? []);
         echo json_encode(['success' => true]);
+        break;
+        
+    case $path === 'admin/cache/config' && $_SERVER['REQUEST_METHOD'] === 'GET':
+        echo json_encode($db['cacheConfig'] ?? [], JSON_UNESCAPED_UNICODE);
+        break;
+        
+    case $path === 'admin/cache/config' && $_SERVER['REQUEST_METHOD'] === 'POST':
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $dbObj = $db['db'] ?? null;
+        if (!$dbObj) {
+            echo json_encode(['error' => 'Database not available']);
+            break;
+        }
+        
+        $dbObj->exec('BEGIN TRANSACTION');
+        
+        foreach ($input as $key => $value) {
+            $stmt = $dbObj->prepare('INSERT OR REPLACE INTO config (config_key, config_value) VALUES (:key, :value)');
+            if ($stmt) {
+                $stmt->bindValue(':key', 'cache_ttl_' . $key, SQLITE3_TEXT);
+                $stmt->bindValue(':value', (string)$value, SQLITE3_TEXT);
+                $stmt->execute();
+            }
+        }
+        
+        $dbObj->exec('COMMIT');
+        echo json_encode(['success' => true]);
+        break;
+        
+    case $path === 'admin/cache/clear' && $_SERVER['REQUEST_METHOD'] === 'POST':
+        $dbObj = $db['db'] ?? null;
+        if ($dbObj) {
+            $dbObj->exec('DELETE FROM cache');
+        }
+        
+        if ($CACHE_ENABLED) {
+            apcu_clear_cache();
+        }
+        
+        echo json_encode(['success' => true]);
+        break;
+        
+    case $path === 'admin/cache/stats' && $_SERVER['REQUEST_METHOD'] === 'GET':
+        $dbObj = $db['db'] ?? null;
+        
+        $sqliteCount = 0;
+        $sqliteSize = 0;
+        
+        if ($dbObj) {
+            $sqliteCount = $dbObj->querySingle('SELECT COUNT(*) FROM cache') ?: 0;
+            $sqliteSize = $dbObj->querySingle('SELECT SUM(LENGTH(cache_data)) FROM cache') ?: 0;
+        }
+        
+        $apcuStats = null;
+        if ($CACHE_ENABLED && function_exists('apcu_cache_info')) {
+            $apcuInfo = apcu_cache_info();
+            $apcuStats = [
+                'num_entries' => $apcuInfo['num_entries'] ?? 0,
+                'mem_size' => $apcuInfo['mem_size'] ?? 0,
+                'hits' => $apcuInfo['num_hits'] ?? 0,
+                'misses' => $apcuInfo['num_misses'] ?? 0
+            ];
+        }
+        
+        echo json_encode([
+            'sqlite' => [
+                'count' => $sqliteCount,
+                'size' => $sqliteSize,
+                'size_mb' => round($sqliteSize / 1024 / 1024, 2)
+            ],
+            'apcu' => $apcuStats,
+            'apcu_enabled' => $CACHE_ENABLED
+        ], JSON_UNESCAPED_UNICODE);
         break;
         
     default:

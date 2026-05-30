@@ -3,6 +3,15 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
+$LOG_FILE = __DIR__ . '/api.log';
+
+function apiLog($message, $level = 'INFO') {
+    global $LOG_FILE;
+    $timestamp = date('Y-m-d H:i:s');
+    $logMessage = "[{$timestamp}] [{$level}] {$message}\n";
+    file_put_contents($LOG_FILE, $logMessage, FILE_APPEND | LOCK_EX);
+}
+
 function errorHandler($errno, $errstr, $errfile, $errline) {
     $errorTypes = [
         E_ERROR => 'Error',
@@ -172,6 +181,32 @@ function cacheGet($key, $useSQLite = false) {
     return $success ? $data : null;
 }
 
+function cacheGetExpired($key, $useSQLite = false) {
+    global $CACHE_ENABLED, $db;
+    
+    if ($useSQLite && isset($db['db'])) {
+        $stmt = $db['db']->prepare('SELECT cache_data, expire_time FROM cache WHERE cache_key = :key');
+        if (!$stmt) return null;
+        
+        $stmt->bindValue(':key', $key, SQLITE3_TEXT);
+        $result = $stmt->execute();
+        if (!$result) return null;
+        
+        $row = $result->fetchArray();
+        
+        if ($row) {
+            return [
+                'data' => $row['cache_data'],
+                'expired' => $row['expire_time'] <= time(),
+                'expire_time' => $row['expire_time']
+            ];
+        }
+        return null;
+    }
+    
+    return null;
+}
+
 function cacheSet($key, $data, $ttl, $useSQLite = false) {
     global $CACHE_ENABLED, $db;
     
@@ -329,11 +364,15 @@ function saveDB($DB_FILE, $sites) {
 }
 
 function httpRequest($url, $timeout = 3000) {
+    apiLog("HTTP请求开始: {$url}, timeout={$timeout}ms");
+    $startTime = microtime(true);
+    
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT_MS => $timeout,
+        CURLOPT_CONNECTTIMEOUT_MS => min($timeout / 2, 5000),
         CURLOPT_FOLLOWLOCATION => true,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
@@ -345,10 +384,14 @@ function httpRequest($url, $timeout = 3000) {
     $error = curl_error($ch);
     curl_close($ch);
     
+    $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+    
     if ($error || $httpCode !== 200) {
+        apiLog("HTTP请求失败: {$url}, httpCode={$httpCode}, error={$error}, elapsed={$elapsed}ms", 'ERROR');
         return null;
     }
     
+    apiLog("HTTP请求成功: {$url}, elapsed={$elapsed}ms");
     return $response;
 }
 
@@ -379,9 +422,12 @@ switch (true) {
         $query = $_SERVER['QUERY_STRING'] ?? '';
         
         $cacheKey = 'tmdb:' . $tmdbPath . ':' . md5($query);
+        apiLog("TMDB请求开始: path={$tmdbPath}, query={$query}, cacheKey={$cacheKey}");
+        
         $cached = cacheGet($cacheKey, true);
         
         if ($cached !== null) {
+            apiLog("TMDB缓存命中: {$cacheKey}", 'INFO');
             echo $cached;
             break;
         }
@@ -392,11 +438,15 @@ switch (true) {
             $url = $TMDB_PROXY_URL . $tmdbPath . '?api_key=' . $TMDB_API_KEY;
         }
         
+        apiLog("TMDB网络请求: {$url}");
+        $startTime = microtime(true);
+        
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT_MS => 5000,
+            CURLOPT_TIMEOUT_MS => 15000,
+            CURLOPT_CONNECTTIMEOUT_MS => 8000,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_SSL_VERIFYHOST => false,
@@ -406,18 +456,52 @@ switch (true) {
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
+        $curlInfo = curl_getinfo($ch);
         curl_close($ch);
         
+        $elapsed = round((microtime(true) - $startTime) * 1000, 2);
+        apiLog("TMDB请求完成: httpCode={$httpCode}, elapsed={$elapsed}ms, error={$error}");
+        
         if ($response && $httpCode === 200) {
-            cacheSet($cacheKey, $response, $CACHE_TTL_TMDB, true);
-            echo $response;
+            $responseData = json_decode($response, true);
+            
+            if ($responseData && isset($responseData['results']) && is_array($responseData['results'])) {
+                cacheSet($cacheKey, $response, $CACHE_TTL_TMDB, true);
+                apiLog("TMDB缓存已保存: {$cacheKey}, resultscount=" . count($responseData['results']));
+                echo $response;
+            } else {
+                apiLog("TMDB数据无效: 无results字段", 'WARN');
+                
+                $expiredCache = cacheGetExpired($cacheKey, true);
+                if ($expiredCache !== null) {
+                    apiLog("TMDB返回过期缓存: {$cacheKey}", 'WARN');
+                    echo $expiredCache['data'];
+                } else {
+                    apiLog("TMDB无缓存可用: {$cacheKey}", 'ERROR');
+                    http_response_code(500);
+                    echo json_encode([
+                        'error' => 'TMDB数据无效',
+                        'details' => $responseData
+                    ], JSON_UNESCAPED_UNICODE);
+                }
+            }
         } else {
-            http_response_code(500);
-            echo json_encode([
-                'error' => 'TMDB API Error',
-                'httpCode' => $httpCode,
-                'curlError' => $error
-            ], JSON_UNESCAPED_UNICODE);
+            apiLog("TMDB请求失败: httpCode={$httpCode}, curlError={$error}", 'ERROR');
+            
+            $expiredCache = cacheGetExpired($cacheKey, true);
+            if ($expiredCache !== null) {
+                apiLog("TMDB返回过期缓存: {$cacheKey}, expired=" . ($expiredCache['expired'] ? 'true' : 'false'), 'WARN');
+                echo $expiredCache['data'];
+            } else {
+                apiLog("TMDB无缓存可用: {$cacheKey}", 'ERROR');
+                http_response_code(500);
+                echo json_encode([
+                    'error' => 'TMDB API Error',
+                    'httpCode' => $httpCode,
+                    'curlError' => $error,
+                    'elapsed' => $elapsed
+                ], JSON_UNESCAPED_UNICODE);
+            }
         }
         break;
         
@@ -499,10 +583,13 @@ switch (true) {
             break;
         }
         
+        apiLog("搜索请求: wd={$wd}");
+        
         $cacheKey = 'search:' . md5($wd);
         $cached = cacheGet($cacheKey, true);
         
         if ($cached !== null) {
+            apiLog("搜索缓存命中: {$cacheKey}");
             echo $cached;
             break;
         }
@@ -510,6 +597,9 @@ switch (true) {
         $activeSites = array_filter($db['sites'], function($s) {
             return $s['active'] ?? false;
         });
+        
+        apiLog("搜索开始: 活跃站点数=" . count($activeSites));
+        $searchStartTime = microtime(true);
         
         $results = [];
         $mh = curl_multi_init();
@@ -522,7 +612,8 @@ switch (true) {
             curl_setopt_array($ch, [
                 CURLOPT_URL => $url,
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT_MS => 6000,
+                CURLOPT_TIMEOUT_MS => 8000,
+                CURLOPT_CONNECTTIMEOUT_MS => 5000,
                 CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_SSL_VERIFYPEER => false,
                 CURLOPT_SSL_VERIFYHOST => false,
@@ -542,9 +633,10 @@ switch (true) {
         
         foreach ($handles as $index => $ch) {
             $response = curl_multi_getcontent($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             $site = $siteMap[$index];
             
-            if ($response) {
+            if ($response && $httpCode === 200) {
                 $data = json_decode($response, true);
                 $list = $data['list'] ?? $data['data'] ?? null;
                 
@@ -563,6 +655,9 @@ switch (true) {
         }
         
         curl_multi_close($mh);
+        
+        $searchElapsed = round((microtime(true) - $searchStartTime) * 1000, 2);
+        apiLog("搜索完成: 结果数=" . count($results) . ", elapsed={$searchElapsed}ms");
         
         $result = ['list' => $results];
         $resultJson = json_encode($result, JSON_UNESCAPED_UNICODE);

@@ -4,3 +4,5 @@ db.json
 .env
 .env.php
 db.sqlite
+api.log
+bug.txt

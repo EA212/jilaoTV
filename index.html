@@ -4,6 +4,161 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <!-- PWA配置 -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1a1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="机佬TV">
+    
+    <!-- DNS预解析和预连接（提升50-300ms） -->
+    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+    
+    <!-- 预加载关键资源（提升首屏速度） -->
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/vue/3.2.47/vue.global.prod.min.js" as="script" crossorigin integrity="sha512-Wn/yBJ4RQtrSFtq1z61/DM40a7VGN8wnyg8oVhWSZAZchTO9zS/l8Kw6bk32CYjS5VgProK4ujLRMqxEE/bUPQ==">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css" as="style" crossorigin integrity="sha512-GQGU0fMMi238uA+a/bdWJfpUGKUkBdgfFdgBm72SUQ6BeyWjoY/ton0tEjH+OSH9iP4Dfh+7HM0I9f5eR0L/4w==">
+    <link rel="preload" href="style.css?v=1.0" as="style">
+    
+    <!-- Bootstrap CSS 必须先加载 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css"
+        integrity="sha512-GQGU0fMMi238uA+a/bdWJfpUGKUkBdgfFdgBm72SUQ6BeyWjoY/ton0tEjH+OSH9iP4Dfh+7HM0I9f5eR0L/4w=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    
+    <!-- 关键CSS内联（首屏渲染必需） -->
+    <style>
+        :root {
+            --bg-color: #141414;
+            --panel-bg: #1f1f1f;
+            --accent: #e50914;
+            --text-main: #ffffff;
+            --text-sub: #b3b3b3;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            min-height: 100vh;
+            padding-bottom: 60px;
+            overflow-x: hidden;
+        }
+        
+        #app {
+            background-color: var(--bg-color);
+            min-height: 100vh;
+        }
+        
+        .navbar-custom {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 1000;
+            padding: 15px 4%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
+            transition: 0.3s;
+        }
+        
+        .navbar-custom.scrolled {
+            background: #141414;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+        }
+        
+        .brand {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+        }
+        
+        .carousel-item {
+            height: 70vh;
+            background-color: #000;
+        }
+        
+        .hero-bg {
+            position: absolute;
+            inset: 0;
+            background-size: cover;
+            background-position: center top;
+        }
+        
+        .hero-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, #141414 0%, transparent 60%), linear-gradient(to right, rgba(0, 0, 0, 0.8) 0%, transparent 50%);
+            display: flex;
+            align-items: center;
+            padding-left: 5%;
+        }
+        
+        .hero-content {
+            max-width: 600px;
+            margin-top: 60px;
+        }
+        
+        .search-section {
+            position: relative;
+            margin-top: -35px;
+            z-index: 20;
+            padding: 0 5%;
+            margin-bottom: 40px;
+        }
+        
+        .search-box-wrapper {
+            background: rgba(30, 30, 30, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(20px);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        .search-input {
+            width: 100%;
+            height: 60px;
+            background: transparent;
+            border: none;
+            color: #fff;
+            font-size: 18px;
+            outline: none;
+        }
+        
+        .section-container {
+            padding: 0 5%;
+            margin-bottom: 40px;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #fff;
+        }
+        
+        @media(max-width: 768px) {
+            .carousel-item { height: 55vh; }
+            .hero-title { font-size: 2.2rem; }
+        }
+    </style>
+    
+    <!-- 主样式表 -->
+    <link rel="stylesheet" href="style.css?v=1.0">
+    
     <!-- 核心：不发送 Referrer -->
     <meta name="referrer" content="no-referrer">
     
@@ -13,11 +168,8 @@
     <meta name="keywords" content="">
     <meta name="author" content="">
 
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="icon" href="favicon.ico?v=1.0" type="image/x-icon">
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css"
-        integrity="sha512-GQGU0fMMi238uA+a/bdWJfpUGKUkBdgfFdgBm72SUQ6BeyWjoY/ton0tEjH+OSH9iP4Dfh+7HM0I9f5eR0L/4w=="
-        crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
         integrity="sha512-c42qTSw/wPZ3/5LBzD+Bw5f7bSF2oxou6wEb+I/lqeaKV5FDIfMvvRp772y4jcJLKuGUOpbJMdg/BTl50fJYAw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -37,7 +189,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.1.3/js/bootstrap.bundle.min.js"
         integrity="sha512-pax4MlgXjHEPfCwcJLQhigY7+N8rt6bVvWLFyUMuxShv170X53TRzGPmPkZmGBhk+jikR8WBM4yl7A9WMHHqvg=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <link rel="stylesheet" href="style.css">
 
 </head>
 
@@ -47,10 +198,25 @@
 
         <nav class="navbar-custom" :class="{ 'scrolled': scrollY > 50 }">
             <div class="brand">
-                <img src="logo.png" alt="机佬 TV" style="height: 70px; vertical-align: middle;">
+                <img src="logo.png?v=1.0" alt="机佬 TV" style="height: 70px; vertical-align: middle;">
                 <span style="font-size:16px; color:#666; font-weight:normal;">MAX</span>
             </div>
-            <!-- <a href="/admin.html" target="_blank" style="color:#888; text-decoration:none; font-size:12px;">Admin</a> -->
+            <button class="theme-toggle" @click="toggleTheme" title="切换主题">
+                <svg v-if="isDark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="5"></circle>
+                    <line x1="12" y1="1" x2="12" y2="3"></line>
+                    <line x1="12" y1="21" x2="12" y2="23"></line>
+                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                    <line x1="1" y1="12" x2="3" y2="12"></line>
+                    <line x1="21" y1="12" x2="23" y2="12"></line>
+                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
         </nav>
 
         <!-- 1. Hero Carousel -->
@@ -333,14 +499,87 @@
         const TMDB_BASE_URL = '/api/tmdb/3';
         const TMDB_IMG_URL = '/api/tmdbimg/t/p/w500';
         const TMDB_BACKDROP_URL = '/api/tmdbimg/t/p/original';
+        
+        const CACHE_TTL_TMDB_LIST = 10 * 60 * 1000;
+        const CACHE_TTL_HERO = 10 * 60 * 1000;
+        const CACHE_PREFIX = 'jilaoTV_cache_';
 
         let dp = null;
+        
+        function cacheGet(key) {
+            try {
+                const item = localStorage.getItem(CACHE_PREFIX + key);
+                if (!item) return null;
+                const { data, timestamp, ttl } = JSON.parse(item);
+                if (Date.now() - timestamp > ttl) {
+                    localStorage.removeItem(CACHE_PREFIX + key);
+                    return null;
+                }
+                return data;
+            } catch (e) {
+                return null;
+            }
+        }
+        
+        function cacheGetWithExpired(key) {
+            try {
+                const item = localStorage.getItem(CACHE_PREFIX + key);
+                if (!item) return null;
+                const { data, timestamp, ttl } = JSON.parse(item);
+                const isExpired = Date.now() - timestamp > ttl;
+                return { data, isExpired, timestamp, ttl };
+            } catch (e) {
+                return null;
+            }
+        }
+        
+        function cacheSet(key, data, ttl) {
+            try {
+                const item = {
+                    data,
+                    timestamp: Date.now(),
+                    ttl
+                };
+                localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(item));
+            } catch (e) {
+                if (e.name === 'QuotaExceededError') {
+                    console.warn('[Cache] localStorage 已满，清理旧缓存');
+                    cacheClearOld();
+                    try {
+                        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(item));
+                    } catch (e2) {
+                        console.error('[Cache] 清理后仍无法存储', e2);
+                    }
+                }
+            }
+        }
+        
+        function cacheClearOld() {
+            const keys = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.startsWith(CACHE_PREFIX)) {
+                    try {
+                        const item = JSON.parse(localStorage.getItem(key));
+                        if (Date.now() - item.timestamp > item.ttl) {
+                            keys.push(key);
+                        }
+                    } catch (e) {
+                        keys.push(key);
+                    }
+                }
+            }
+            keys.forEach(key => localStorage.removeItem(key));
+        }
 
         // 添加触摸滑动支持函数
         function initHotRowSwipe() {
             const hotRows = document.querySelectorAll('.hot-row');
             
             hotRows.forEach(row => {
+                if (row._swipeInitialized) return;
+                row._swipeInitialized = true;
+                
                 let isDown = false;
                 let startX;
                 let scrollLeft;
@@ -483,11 +722,19 @@
                     imageMap: {}, fallbackMap: {}, heroList: [], scrollY: 0,
                     hotList: [],
                     searchTimer: null,
-                    searchAbortController: null
+                    searchAbortController: null,
+                    isDark: true
                 }
             },
             mounted() {
                 window.addEventListener('scroll', () => { this.scrollY = window.scrollY; });
+                
+                const savedTheme = localStorage.getItem('theme');
+                if (savedTheme === 'light') {
+                    this.isDark = false;
+                    document.documentElement.setAttribute('data-theme', 'light');
+                }
+                
                 this.fetchHero();
                 this.fetchAllLists();
                 
@@ -516,6 +763,16 @@
                 }
             },
             methods: {
+                toggleTheme() {
+                    this.isDark = !this.isDark;
+                    if (this.isDark) {
+                        document.documentElement.removeAttribute('data-theme');
+                        localStorage.setItem('theme', 'dark');
+                    } else {
+                        document.documentElement.setAttribute('data-theme', 'light');
+                        localStorage.setItem('theme', 'light');
+                    }
+                },
                 getLatencyClass(ms) { return ms < 500 ? 'dot-green' : (ms < 2000 ? 'dot-yellow' : 'dot-red'); },
                 castVideo() {
                     const videoEl = document.querySelector('.dplayer-video');
@@ -525,15 +782,40 @@
                     else alert('您的浏览器不支持网页直接投屏，请使用浏览器菜单中的投射功能。');
                 },
 
-                async fetchWithRetry(url, options = {}, retries = 3, delay = 3000) {
+                async fetchWithRetry(url, options = {}, retries = 3, baseDelay = 1000) {
                     for (let i = 0; i < retries; i++) {
                         try {
                             const res = await fetch(url, options);
-                            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                            return await res.json();
+                            if (!res.ok) {
+                                console.warn(`请求失败 (第${i + 1}次): HTTP ${res.status}`);
+                                if (i < retries - 1) {
+                                    const delay = baseDelay * Math.pow(2, i);
+                                    console.log(`等待 ${delay}ms 后重试...`);
+                                    await new Promise(r => setTimeout(r, delay));
+                                    continue;
+                                }
+                                throw new Error(`HTTP ${res.status}`);
+                            }
+                            
+                            const data = await res.json();
+                            
+                            if (!data || data.error || data.success === false) {
+                                console.warn(`请求失败 (第${i + 1}次): 数据错误`, data);
+                                if (i < retries - 1) {
+                                    const delay = baseDelay * Math.pow(2, i);
+                                    console.log(`等待 ${delay}ms 后重试...`);
+                                    await new Promise(r => setTimeout(r, delay));
+                                    continue;
+                                }
+                                throw new Error(data?.error || data?.status_message || '数据错误');
+                            }
+                            
+                            return data;
                         } catch (err) {
                             console.warn(`请求失败 (第${i + 1}次):`, url, err.message);
                             if (i < retries - 1) {
+                                const delay = baseDelay * Math.pow(2, i);
+                                console.log(`等待 ${delay}ms 后重试...`);
                                 await new Promise(r => setTimeout(r, delay));
                             } else {
                                 console.error(`请求最终失败 (${retries}次重试后):`, url);
@@ -542,18 +824,90 @@
                         }
                     }
                 },
+                
+                async fetchWithCache(url, cacheKey, ttl, options = {}) {
+                    const cachedInfo = cacheGetWithExpired(cacheKey);
+                    
+                    if (cachedInfo) {
+                        if (!cachedInfo.isExpired) {
+                            console.log(`[Cache] 命中: ${cacheKey}`);
+                            this.silentUpdate(url, cacheKey, ttl, options);
+                            return cachedInfo.data;
+                        } else {
+                            console.log(`[Cache] 过期但仍可用: ${cacheKey}`);
+                            this.silentUpdateWithCallback(url, cacheKey, ttl, options, (newData) => {
+                                this.updateListData(cacheKey, newData);
+                            });
+                            return cachedInfo.data;
+                        }
+                    }
+                    
+                    console.log(`[Cache] 未命中: ${cacheKey}，发起网络请求`);
+                    const data = await this.fetchWithRetry(url, options);
+                    cacheSet(cacheKey, data, ttl);
+                    return data;
+                },
+                
+                silentUpdateWithCallback(url, cacheKey, ttl, options, callback) {
+                    this.fetchWithRetry(url, options)
+                        .then(data => {
+                            if (data && data.results) {
+                                cacheSet(cacheKey, data, ttl);
+                                console.log(`[Cache] 后台更新完成: ${cacheKey}`);
+                                callback(data);
+                            }
+                        })
+                        .catch(err => {
+                            console.warn(`[Cache] 后台更新失败: ${cacheKey}`, err.message);
+                        });
+                },
+                
+                updateListData(cacheKey, newData) {
+                    const keyMap = {
+                        'tmdb_movie_list': 'movieList',
+                        'tmdb_tv_list': 'tvList',
+                        'tmdb_cn_list': 'list_cn',
+                        'tmdb_krjp_list': 'list_krjp',
+                        'tmdb_hktw_list': 'list_hktw',
+                        'tmdb_hero_list': 'heroList'
+                    };
+                    const target = keyMap[cacheKey];
+                    if (target && newData && newData.results) {
+                        console.log(`[Cache] 更新UI: ${target}`);
+                        if (target === 'heroList') {
+                            this.heroList = newData.results.filter(i => i.backdrop_path).slice(0, 5).map(item => ({
+                                title: item.title || item.name,
+                                overview: item.overview || '精彩内容不容错过',
+                                backdrop: `${TMDB_BACKDROP_URL}${item.backdrop_path}`
+                            }));
+                        } else {
+                            this[target] = newData.results;
+                        }
+                    }
+                },
+                
+                silentUpdate(url, cacheKey, ttl, options = {}) {
+                    this.fetchWithRetry(url, options)
+                        .then(data => {
+                            if (data && data.results) {
+                                cacheSet(cacheKey, data, ttl);
+                                console.log(`[Cache] 后台更新: ${cacheKey}`);
+                            }
+                        })
+                        .catch(() => {});
+                },
 
                 async fetchAllLists() {
                     const requests = [
-                        { url: `${TMDB_BASE_URL}/trending/movie/week?language=zh-CN`, target: 'movieList', name: '电影榜' },
-                        { url: `${TMDB_BASE_URL}/trending/tv/week?language=zh-CN`, target: 'tvList', name: '剧集榜' },
-                        { url: `${TMDB_BASE_URL}/discover/tv?with_origin_country=CN&sort_by=popularity.desc&language=zh-CN`, target: 'list_cn', name: '华语强档' },
-                        { url: `${TMDB_BASE_URL}/discover/tv?with_origin_country=KR|JP&sort_by=popularity.desc&language=zh-CN`, target: 'list_krjp', name: '日韩潮流' },
-                        { url: `${TMDB_BASE_URL}/discover/movie?with_origin_country=HK|TW&sort_by=popularity.desc&language=zh-CN`, target: 'list_hktw', name: '港台电影' }
+                        { url: `${TMDB_BASE_URL}/trending/movie/week?language=zh-CN`, target: 'movieList', name: '电影榜', cacheKey: 'tmdb_movie_list' },
+                        { url: `${TMDB_BASE_URL}/trending/tv/week?language=zh-CN`, target: 'tvList', name: '剧集榜', cacheKey: 'tmdb_tv_list' },
+                        { url: `${TMDB_BASE_URL}/discover/tv?with_origin_country=CN&sort_by=popularity.desc&language=zh-CN`, target: 'list_cn', name: '华语强档', cacheKey: 'tmdb_cn_list' },
+                        { url: `${TMDB_BASE_URL}/discover/tv?with_origin_country=KR|JP&sort_by=popularity.desc&language=zh-CN`, target: 'list_krjp', name: '日韩潮流', cacheKey: 'tmdb_krjp_list' },
+                        { url: `${TMDB_BASE_URL}/discover/movie?with_origin_country=HK|TW&sort_by=popularity.desc&language=zh-CN`, target: 'list_hktw', name: '港台电影', cacheKey: 'tmdb_hktw_list' }
                     ];
 
                     const results = await Promise.allSettled(
-                        requests.map(req => this.fetchWithRetry(req.url)) // ✅ 直接走重试，不手动捕获
+                        requests.map(req => this.fetchWithCache(req.url, req.cacheKey, CACHE_TTL_TMDB_LIST))
                     );
 
                     results.forEach((result, index) => {
@@ -569,11 +923,21 @@
                             console.error(`${req.name}最终请求失败：`, result.reason);
                         }
                     });
+                    
+                    this.$nextTick(() => {
+                        initHotRowSwipe();
+                        this.initHotRowNavStates();
+                    });
                 },
 
                 async fetchHero() {
+                    const cacheKey = 'tmdb_hero_list';
                     try {
-                        const data = await this.fetchWithRetry(`${TMDB_BASE_URL}/trending/all/week?language=zh-CN`);
+                        const data = await this.fetchWithCache(
+                            `${TMDB_BASE_URL}/trending/all/week?language=zh-CN`,
+                            cacheKey,
+                            CACHE_TTL_HERO
+                        );
                         if (data.results) {
                             this.heroList = data.results.filter(i => i.backdrop_path).slice(0, 5).map(item => ({
                                 title: item.title || item.name,
@@ -748,16 +1112,17 @@
                 },
                 
                 updateNavButtons(hotRow, section) {
-                    const prevBtn = document.querySelector(`[data-section="${section}"]`).parentElement.querySelector('.nav-prev');
-                    const nextBtn = document.querySelector(`[data-section="${section}"]`).parentElement.querySelector('.nav-next');
+                    const sectionEl = document.querySelector(`[data-section="${section}"]`);
+                    if (!sectionEl || !sectionEl.parentElement) return;
+                    
+                    const prevBtn = sectionEl.parentElement.querySelector('.nav-prev');
+                    const nextBtn = sectionEl.parentElement.querySelector('.nav-next');
                     
                     if (prevBtn && nextBtn) {
-                        // 检查是否可以向前滚动
                         prevBtn.disabled = hotRow.scrollLeft <= 0;
                         
-                        // 检查是否可以向后滚动
                         const maxScroll = hotRow.scrollWidth - hotRow.clientWidth;
-                        nextBtn.disabled = hotRow.scrollLeft >= maxScroll - 10; // 10px 容差
+                        nextBtn.disabled = hotRow.scrollLeft >= maxScroll - 10;
                     }
                 },
                 
@@ -767,23 +1132,59 @@
                     sections.forEach(section => {
                         const hotRow = document.querySelector(`[data-section="${section}"]`);
                         if (hotRow) {
-                            // 监听滚动事件更新按钮状态
-                            hotRow.addEventListener('scroll', () => {
-                                this.updateNavButtons(hotRow, section);
-                            });
+                            if (!hotRow._navInitialized) {
+                                hotRow._navInitialized = true;
+                                
+                                hotRow.addEventListener('scroll', () => {
+                                    this.updateNavButtons(hotRow, section);
+                                });
+                                
+                                window.addEventListener('resize', () => {
+                                    this.updateNavButtons(hotRow, section);
+                                });
+                            }
                             
-                            // 初始状态
                             this.updateNavButtons(hotRow, section);
-                            
-                            // 窗口大小改变时重新计算
-                            window.addEventListener('resize', () => {
-                                this.updateNavButtons(hotRow, section);
-                            });
                         }
                     });
                 }
             }
         }).mount('#app');
+    </script>
+    
+    <!-- Service Worker 注册 -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then((registration) => {
+                        console.log('✅ Service Worker 注册成功:', registration.scope);
+                        
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('🔄 发现新版本，正在更新...');
+                            
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('✨ 新版本已就绪，刷新页面生效');
+                                    
+                                    if (confirm('发现新版本，是否立即刷新？')) {
+                                        newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.error('❌ Service Worker 注册失败:', error);
+                    });
+                
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('🔄 Service Worker 已更新');
+                });
+            });
+        }
     </script>
 </body>
 
